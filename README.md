@@ -4,20 +4,28 @@
 
 This project analyses global COVID-19 case, death, and vaccination data using T-SQL in SQL Server Management Studio. The goal wasn't just to run queries, but to practise the full workflow a real analyst goes through: loading messy real-world data, making deliberate decisions about how to handle its imperfections, and only then answering specific business/public-health questions with increasingly advanced SQL.
 
-**Data source:** [Our World in Data](https://ourworldindata.org/covid-deaths) COVID-19 dataset, split into two files: `Covid_death.csv` (cases, deaths, hospitalisation) and `Covid_vaccinations.csv` (testing, vaccination, demographic indicators). Raw CSVs aren't included in this repo due to file size - download them from the link above to run the scripts yourself.
+**Data source:** COVID-19 dataset, split into two files: `Covid_death.csv` (cases, deaths, hospitalisation) and `Covid_vaccinations.csv` (testing, vaccination, demographic indicators). Raw CSVs aren't included in this repo due to file size - download them from the link above to run the scripts yourself.
 
 **Date range covered:** 1 January 2020 – 30 April 2021 (so this dataset captures the first year of the pandemic and the very start of the global vaccine rollout, but not later waves like Delta or Omicron).
 
-**Tools used:** SQL Server Management Studio (T-SQL), BULK INSERT, window functions, CTEs, views, stored procedures.
+**Tools used:** SQL Server Management Studio (T-SQL)
 
 ---
 
 ## Process
 
 ### 1. Loading the data
-Rather than rely on SSMS's Import Flat File wizard (which repeatedly mis-sized numeric columns and rejected legitimate blank values as errors), both CSVs were loaded using a hand-written schema (`01_create_and_load_covid_tables.sql`) and `BULK INSERT`. Writing the schema manually meant full control over data types and nullability from the start - e.g. `population` needed `bigint` rather than `int`, since the "World" aggregate row alone is close to 8 billion.
+Rather than rely on SSMS's Import Flat File wizard (which repeatedly mis-sized numeric columns and rejected legitimate blank values as errors), both CSVs were loaded using a hand-written schema and `BULK INSERT`. Writing the schema manually meant full control over data types and nullability from the start - e.g. `population` needed `bigint` rather than `int`, since the "World" aggregate row alone is close to 8 billion.
+<img width="1800" height="1416" alt="create coviddeath table" src="https://github.com/user-attachments/assets/ea4e3eab-819a-41b0-b84d-d8f8c58e4cfd" />
+<img width="1160" height="708" alt="insert into covid deaths table" src="https://github.com/user-attachments/assets/26bc50ee-5490-4bb6-aba3-3ab569ec4334" />
 
-### 2. Cleaning (`02_data_cleaning.sql`)
+<img width="1412" height="1824" alt="create covid vaccination table" src="https://github.com/user-attachments/assets/63ae6648-d2bb-4dce-a33c-724510462cee" />
+<img width="1278" height="708" alt="insert into covid vaccination table" src="https://github.com/user-attachments/assets/eae983bd-9bc0-43bb-ba6f-4946da062888" />
+
+
+
+
+### 2. Cleaning 
 - **Duplicates:** Checked for duplicate `(location, date)` pairs using `ROW_NUMBER()`. None were found - confirmed, not assumed.
 - **Aggregate rows:** The dataset includes rows for continents, the EU, and "World" alongside individual countries, identifiable by an `iso_code` starting with `OWID_`. These aren't errors - they're a different level of granularity - so they were kept but explicitly excluded from country-level comparisons throughout.
 - **Nulls - a deliberate decision, not a default:** Roughly 90% of `icu_patients` and `hosp_patients` values are null, because most countries never reported those metrics at all - not because the true value was zero. These were **left as null rather than zero-filled**, because filling with 0 would have fabricated "no ICU load" for countries that simply didn't publish the figure. The same reasoning applied to `new_cases`/`new_deaths`: `SUM()` and `AVG()` already skip nulls correctly, so leaving reporting gaps as null kept global totals and rolling averages accurate.
@@ -25,9 +33,10 @@ Rather than rely on SSMS's Import Flat File wizard (which repeatedly mis-sized n
 
 One bug worth showing rather than just mentioning: an early version of a percentage calculation divided before multiplying by a decimal, which in SQL Server triggers integer division and silently truncates the result to zero. Same query, same data, before and after the fix:
 
-![Integer division bug fix](screenshots/bug-fix-integer-division.png)
+<img width="747" height="472" alt="Screenshot 2026-10-13 162621" src="https://github.com/user-attachments/assets/657adce0-a150-4ff7-a884-63ebc3e1e65a" />
 
-### 3. Analysis (`03_analysis_queries.sql`)
+
+### 3. Analysis 
 Eleven queries, building in complexity: global aggregation → per-country grouping → window functions (rolling 7-day averages, running vaccination totals) → CTEs → ranking within continents and by rollout speed → a reusable view → a parameterised stored procedure. Full queries and comments are in the script itself.
 
 ---
@@ -42,9 +51,14 @@ Eleven queries, building in complexity: global aggregation → per-country group
 
 **Europe bore the highest absolute death toll.** By continent: **Europe (1,016,750 deaths)**, North America (847,942), South America (672,415), Asia (520,269), Africa (121,784), and Oceania (1,046) - a gap of three orders of magnitude between the hardest-hit and least-hit continents.
 
-**Vaccine rollout speed had almost nothing to do with population size, and everything to do with how small and centralised a place was.** As of the dataset's final date (30 April 2021), the most fully-vaccinated places were **Gibraltar (97.5%), Seychelles (60.2%), Israel (58.8%), the Falkland Islands (51.0%), and the Cayman Islands (45.5%)** - almost all small territories or city-states that could run a national rollout quickly. Meanwhile, countries like Ukraine, Guatemala, Albania, Grenada, and Honduras were all still under 0.03% fully vaccinated at the same date - essentially not yet started. This is one of the starkest findings in the dataset: a ~3,000x gap in rollout speed between the fastest and slowest countries, at the exact same point in time.
+**Vaccine rollout speed had almost nothing to do with population size, and everything to do with how small and centralised a place was.** As of the dataset's final date (30 April 2021), the most fully-vaccinated places were **Gibraltar (97.47%), Seychelles (60.16%), Israel (58.84%), the Falkland Islands (50.96%), and the Cayman Islands (45.53%)** - almost all small territories or city-states that could run a national rollout quickly. Meanwhile, countries like Ukraine, Guatemala, Albania, Grenada, and Honduras were all still under 0.03% fully vaccinated at the same date - essentially not yet started. This is one of the starkest findings in the dataset: a ~3,000x gap in rollout speed between the fastest and slowest countries, at the exact same point in time.
+<img width="1194" height="856" alt="carbon" src="https://github.com/user-attachments/assets/01bcd367-2194-4119-9226-275e4e4c3f5d" />
 
-![Vaccination rollout ranking](screenshots/vaccination-ranking.png)
+
+<img width="741" height="180" alt="Screenshot 2026-10-13 161308" src="https://github.com/user-attachments/assets/78320c6d-2026-42ab-8556-ab0dddea2426" />
+
+<img width="727" height="105" alt="Screenshot 2026-10-13 161434" src="https://github.com/user-attachments/assets/ee70848c-6337-4833-bcf5-7a935fd223fa" />
+
 
 ---
 
