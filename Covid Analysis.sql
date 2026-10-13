@@ -8,7 +8,7 @@ CREATE TABLE dbo.CovidDeaths (
     iso_code                         VARCHAR(10)   NOT NULL,
     continent                        VARCHAR(20)   NULL,
     location                         VARCHAR(100)  NOT NULL,
-    [date]                           VARCHAR(20)   NOT NULL,   -- converted to DATE below
+    [date]                           VARCHAR(20)   NOT NULL,
     population                       BIGINT        NULL,
     total_cases                      BIGINT        NULL,
     new_cases                        INT           NULL,
